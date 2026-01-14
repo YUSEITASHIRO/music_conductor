@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Conductor - Local File Version</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #222;
+            color: white;
+            font-family: sans-serif;
+            padding-bottom: 20px;
+        }
+        #container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin-top: 10px;
+            background-color: #000;
+        }
+        #input_video {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1); 
+            display: none; 
+        }
+        #output_canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            border: 2px solid #555;
+        }
+        .ui-panel {
+            margin-top: 20px;
+            padding: 20px;
+            background: #333;
+            border-radius: 8px;
+            text-align: center;
+            width: 600px;
+        }
+        input[type="file"] {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 4px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            color: #aaa;
+        }
+        button:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #00ff00;
+            min-height: 1.2em;
+        }
+        .instructions {
+            margin: 10px;
+            font-size: 0.9em;
+            color: #ccc;
+            text-align: left;
+            width: 640px;
+        }
+        .instructions li span { font-weight: bold; color: #fff;}
+    </style>
+</head>
+<body>
+    <div class="ui-panel">
+        <h1>AI Conductor (Local File)</h1>
+        
+        <div>
+            <label for="audio-upload">好きな音楽ファイルを選択してください (mp3, wav, m4a等): </label><br>
+            <input type="file" id="audio-upload" accept="audio/*">
+        </div>
+
+        <button id="start-button" disabled>ファイルを選択してください</button>
+        <div id="status">待機中...</div>
+    </div>
+
+    <div class="instructions">
+        <ul>
+            <li><span>【右手】上下の速さ：</span>テンポ (再生速度) が変わります。</li>
+            <li><span>【左手】高さ：</span>音量 (上=大, 下=小)。</li>
+            <li><span>【左手】グー・パー：</span>響き (パー=響く, グー=ドライ)。</li>
+            <li><span>【両手】動きの激しさ：</span>音色 (激しい=明るい)。</li>
+        </ul>
+    </div>
+
+    <div id="container">
+        <video id="input_video"></video>
+        <canvas id="output_canvas" width="640" height="480"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const startButton = document.getElementById('start-button');
+        const statusDiv = document.getElementById('status');
+        const fileInput = document.getElementById('audio-upload');
+
+        let isPlaying = false;
+        let player = null;
+        let lowPassFilter, reverb, masterVolume;
+
+        // ==============================================
+        // 音声エフェクト初期設定 (チェーンの枠組みだけ作る)
+        // ==============================================
+        lowPassFilter = new Tone.Filter(2000, "lowpass");
+        reverb = new Tone.Reverb({ decay: 3, wet: 0 });
+        masterVolume = new Tone.Volume(0);
+        
+        // 接続
+        lowPassFilter.connect(reverb);
+        reverb.connect(masterVolume);
+        masterVolume.toDestination();
+
+        // ==============================================
+        // ファイルアップロード処理
+        // ==============================================
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 以前の状態をリセット
+            if (player) {
+                player.stop();
+                player.dispose(); // メモリ開放
+                player = null;
+            }
+            if (isPlaying) {
+                // カメラ停止などの処理が必要ならここへ
+                isPlaying = false;
+                startButton.textContent = "Start Conductor";
+            }
+
+            startButton.disabled = true;
+            statusDiv.textContent = `解析中: ${file.name} を読み込んでいます...`;
+            startButton.textContent = "Loading...";
+
+            // ファイルをBlob URLに変換
+            const fileUrl = URL.createObjectURL(file);
+
+            // Tone.GrainPlayerの初期化とロード
+            player = new Tone.GrainPlayer({
+                url: fileUrl,
+                loop: true,
+                grainSize: 0.1,
+                overlap: 0.05,
+                onload: () => {
+                    statusDiv.textContent = "解析完了。開始ボタンを押してください。";
+                    startButton.textContent = "Start Conductor";
+                    startButton.disabled = false;
+                    console.log("Audio Buffer Loaded");
+                },
+                onerror: (e) => {
+                    statusDiv.textContent = "エラー: ファイルを読み込めませんでした。";
+                    console.error(e);
+                }
+            });
+
+            // エフェクトチェーンの先頭に接続
+            player.connect(lowPassFilter);
+        });
+
+        // ==============================================
+        // 開始ボタン処理
+        // ==============================================
+        startButton.addEventListener('click', async () => {
+            if (!player) return;
+
+            if (!isPlaying) {
+                // 初回のみAudioContextを起動(ユーザー操作必須)
+                await Tone.start(); 
+                
+                // 再生開始
+                player.start();
+                isPlaying = true;
+                
+                startButton.textContent = "Stop";
+                statusDiv.textContent = "演奏中...カメラに手を映してください";
+                
+                // カメラ起動
+                camera.start();
+            } else {
+                // 停止処理
+                player.stop();
+                isPlaying = false;
+                startButton.textContent = "Start Conductor";
+                statusDiv.textContent = "一時停止中";
+                // カメラは停止せずそのままにしておく（再開をスムーズにするため）
+            }
+        });
+
+        // ==============================================
+        // MediaPipe Logic (前回と同様)
+        // ==============================================
+        let rightHandSpeeds = [];
+        const speedHistorySize = 15;
+        let lastRightHandY = null;
+        let lastFrameTime = performance.now();
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandedness && isPlaying) {
+                let rightHand = null;
+                let leftHand = null;
+
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const label = results.multiHandedness[i].label;
+                    const landmarks = results.multiHandLandmarks[i];
+                    if (label === 'Left') rightHand = landmarks; 
+                    else leftHand = landmarks;
+
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+                }
+
+                const currentTime = performance.now();
+                const deltaTime = (currentTime - lastFrameTime) / 1000;
+
+                // 1. 右手：テンポ
+                if (rightHand && deltaTime > 0) {
+                    const wristY = rightHand[0].y;
+                    if (lastRightHandY !== null) {
+                        const speedY = Math.abs(wristY - lastRightHandY) / deltaTime;
+                        rightHandSpeeds.push(speedY);
+                        if (rightHandSpeeds.length > speedHistorySize) rightHandSpeeds.shift();
+
+                        const avgSpeed = rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length;
+                        
+                        // 速度マッピングの調整 (より自然な変化幅に)
+                        let targetRate = 1.0 + (avgSpeed * 0.6); 
+                        targetRate = Math.max(0.5, Math.min(targetRate, 2.0));
+
+                        // playerが存在する場合のみ適用
+                        if(player && player.playbackRate) {
+                             player.playbackRate = player.playbackRate * 0.9 + targetRate * 0.1;
+                        }
+                    }
+                    lastRightHandY = wristY;
+                } else {
+                    if(player && player.playbackRate) {
+                        player.playbackRate = player.playbackRate * 0.95 + 1.0 * 0.05;
+                    }
+                }
+                lastFrameTime = currentTime;
+
+                // 2. 左手：音量 & リバーブ
+                if (leftHand) {
+                    const wristY = leftHand[0].y;
+                    let targetVolume = (1.0 - wristY) * 35 - 30; 
+                    targetVolume = Math.max(-60, Math.min(targetVolume, 10));
+                    masterVolume.volume.rampTo(targetVolume, 0.1);
+
+                    const wrist = leftHand[0];
+                    const middleFingerTip = leftHand[12];
+                    const distance = Math.sqrt(Math.pow(wrist.x - middleFingerTip.x, 2) + Math.pow(wrist.y - middleFingerTip.y, 2));
+                    let wetAmount = (distance - 0.2) * 2.5;
+                    wetAmount = Math.max(0, Math.min(wetAmount, 0.6));
+                    reverb.wet.rampTo(wetAmount, 0.2);
+                }
+
+                // 3. 全体：音色
+                const currentAvgSpeed = rightHandSpeeds.length > 0 ? rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length : 0;
+                let targetFreq = 500 + (currentAvgSpeed * 4000);
+                targetFreq = Math.max(200, Math.min(targetFreq, 10000));
+                lowPassFilter.frequency.rampTo(targetFreq, 0.1);
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        
+    </script>
+</body>
+</html>
