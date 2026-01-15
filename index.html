@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Conductor - Unlimited Custom</title>
+    <title>AI Conductor - Slider & Camera Reset</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -27,15 +27,13 @@
             height: 480px;
             margin-top: 10px;
             background-color: #000;
+            border: 1px solid #444;
         }
-        #input_video {
-            display: none; 
-        }
+        #input_video { display: none; }
         #output_canvas {
             width: 100%;
             height: 100%;
-            transform: scaleX(-1); /* 鏡像表示 */
-            border: 2px solid #555;
+            transform: scaleX(-1);
         }
         .ui-panel {
             margin-top: 20px;
@@ -45,75 +43,80 @@
             text-align: center;
             width: 600px;
         }
+        /* スライダーエリアのデザイン */
         .settings-panel {
             margin-top: 20px;
             padding: 20px;
-            background: #111;
+            background: #181818;
             border: 1px solid #444;
             border-radius: 8px;
             width: 600px;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 20px;
             text-align: left;
         }
         .setting-item {
             display: flex;
             flex-direction: column;
         }
-        .setting-item label {
-            font-size: 0.85em;
+        .setting-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
             color: #aaa;
             margin-bottom: 5px;
         }
-        .setting-item input {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 4px;
+        .val-display {
+            color: #4CAF50;
+            font-weight: bold;
         }
-        input[type="file"] {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #444;
-            color: #fff;
-            border: 1px solid #666;
-            border-radius: 4px;
-            width: 90%;
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        /* ボタン類 */
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
         }
         button {
-            padding: 12px 30px;
-            font-size: 18px;
+            padding: 10px 20px;
+            font-size: 16px;
             cursor: pointer;
-            background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
-            transition: background-color 0.3s;
+            transition: opacity 0.3s;
         }
+        #start-button { background-color: #4CAF50; }
+        #camera-reset-button { background-color: #2196F3; } /* 青色 */
+        
         button:disabled {
-            background-color: #555;
+            background-color: #555 !important;
             cursor: not-allowed;
         }
-        #status {
-            margin-top: 10px;
-            font-weight: bold;
-            color: #00ff00;
-            min-height: 1.2em;
-        }
-        h2 { font-size: 1.2em; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 0;}
+        button:active { opacity: 0.8; }
+        
+        h2 { font-size: 1.1em; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 0; color: #ddd;}
     </style>
 </head>
 <body>
     <div class="ui-panel">
-        <h1>AI Conductor (Unlimited)</h1>
+        <h1>AI Conductor (Slider Control)</h1>
         <div>
             <label>音楽ファイルを選択: </label><br>
-            <input type="file" id="audio-upload" accept="audio/*">
+            <input type="file" id="audio-upload" accept="audio/*" style="margin:10px 0;">
         </div>
-        <button id="start-button" disabled>ファイルを選択してください</button>
-        <div id="status">待機中...</div>
+        
+        <div class="btn-group">
+            <button id="start-button" disabled>ファイルを選択してください</button>
+            <button id="camera-reset-button" disabled>🔄 カメラ再起動</button>
+        </div>
+        <div id="status" style="margin-top:10px; color:#0f0; min-height:1.2em;">待機中...</div>
     </div>
 
     <div id="container">
@@ -123,40 +126,51 @@
 
     <div class="settings-panel">
         <div style="grid-column: span 2;">
-            <h2>感度・強度の調整 (上限なし)</h2>
-            <p style="font-size:0.8em; color:#888;">数値を変更すると即座に反映されます。マイナス値も可能です。</p>
+            <h2>感度調整 (リアルタイム反映)</h2>
         </div>
 
         <div class="setting-item">
-            <label>【右手】テンポ感度 (速度倍率)</label>
-            <input type="number" id="param-tempo" value="0.8" step="0.1">
-            <small style="color:#666">値が大きいほど少しの動きで高速化</small>
+            <div class="setting-header">
+                <label>【右手】テンポ感度</label>
+                <span class="val-display" id="val-tempo">1.0</span>
+            </div>
+            <input type="range" id="param-tempo" min="0.1" max="4.0" step="0.1" value="1.0">
         </div>
         <div class="setting-item">
-            <label>【右手】明暗(フィルター)感度</label>
-            <input type="number" id="param-filter" value="4.0" step="0.5">
-            <small style="color:#666">値が大きいほど少しの開きで全開に</small>
+            <div class="setting-header">
+                <label>【右手】明暗(フィルター)感度</label>
+                <span class="val-display" id="val-filter">4.0</span>
+            </div>
+            <input type="range" id="param-filter" min="1.0" max="10.0" step="0.5" value="4.0">
         </div>
 
         <div class="setting-item">
-            <label>【左手】音量レンジ (dB幅)</label>
-            <input type="number" id="param-vol-range" value="50" step="5">
-            <small style="color:#666">音量変化の幅 (Max - Min)</small>
+            <div class="setting-header">
+                <label>【左手】音量レンジ (dB)</label>
+                <span class="val-display" id="val-vol-range">50</span>
+            </div>
+            <input type="range" id="param-vol-range" min="10" max="80" step="5" value="50">
         </div>
         <div class="setting-item">
-            <label>【左手】音量オフセット (基準dB)</label>
-            <input type="number" id="param-vol-offset" value="-40" step="5">
-            <small style="color:#666">一番下げた時の音量</small>
+            <div class="setting-header">
+                <label>【左手】最低音量 (Offset)</label>
+                <span class="val-display" id="val-vol-offset">-40</span>
+            </div>
+            <input type="range" id="param-vol-offset" min="-80" max="-10" step="5" value="-40">
         </div>
         <div class="setting-item">
-            <label>【左手】リバーブ感度</label>
-            <input type="number" id="param-reverb" value="2.5" step="0.5">
-            <small style="color:#666">値が大きいほど少しの開きで最大残響</small>
+            <div class="setting-header">
+                <label>【左手】リバーブ感度</label>
+                <span class="val-display" id="val-reverb">2.5</span>
+            </div>
+            <input type="range" id="param-reverb" min="0.5" max="5.0" step="0.5" value="2.5">
         </div>
         <div class="setting-item">
-            <label>反応速度 (スムージング)</label>
-            <input type="number" id="param-smooth" value="15" step="1">
-            <small style="color:#666">平均を取るフレーム数 (小=機敏, 大=滑らか)</small>
+            <div class="setting-header">
+                <label>滑らかさ (フレーム数)</label>
+                <span class="val-display" id="val-smooth">15</span>
+            </div>
+            <input type="range" id="param-smooth" min="1" max="60" step="1" value="15">
         </div>
     </div>
 
@@ -165,16 +179,35 @@
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
         const startButton = document.getElementById('start-button');
+        const resetCameraButton = document.getElementById('camera-reset-button');
         const statusDiv = document.getElementById('status');
         const fileInput = document.getElementById('audio-upload');
 
-        // パラメータ入力欄
-        const inputTempo = document.getElementById('param-tempo');
-        const inputFilter = document.getElementById('param-filter');
-        const inputVolRange = document.getElementById('param-vol-range');
-        const inputVolOffset = document.getElementById('param-vol-offset');
-        const inputReverb = document.getElementById('param-reverb');
-        const inputSmooth = document.getElementById('param-smooth');
+        // スライダー要素の取得
+        const inputs = {
+            tempo: document.getElementById('param-tempo'),
+            filter: document.getElementById('param-filter'),
+            volRange: document.getElementById('param-vol-range'),
+            volOffset: document.getElementById('param-vol-offset'),
+            reverb: document.getElementById('param-reverb'),
+            smooth: document.getElementById('param-smooth')
+        };
+        // 数値表示要素の取得
+        const displays = {
+            tempo: document.getElementById('val-tempo'),
+            filter: document.getElementById('val-filter'),
+            volRange: document.getElementById('val-vol-range'),
+            volOffset: document.getElementById('val-vol-offset'),
+            reverb: document.getElementById('val-reverb'),
+            smooth: document.getElementById('val-smooth')
+        };
+
+        // スライダー操作時の数値表示更新イベントを一括登録
+        Object.keys(inputs).forEach(key => {
+            inputs[key].addEventListener('input', (e) => {
+                displays[key].textContent = e.target.value;
+            });
+        });
 
         let isPlaying = false;
         let player = null;
@@ -184,7 +217,6 @@
         lowPassFilter = new Tone.Filter(20000, "lowpass");
         reverb = new Tone.Reverb({ decay: 4, wet: 0 });
         masterVolume = new Tone.Volume(0);
-        
         lowPassFilter.connect(reverb);
         reverb.connect(masterVolume);
         masterVolume.toDestination();
@@ -224,7 +256,7 @@
             player.connect(lowPassFilter);
         });
 
-        // Start/Stop
+        // Start/Stop Logic
         startButton.addEventListener('click', async () => {
             if (!player) return;
             if (!isPlaying) {
@@ -233,12 +265,32 @@
                 isPlaying = true;
                 startButton.textContent = "Stop";
                 statusDiv.textContent = "演奏中";
-                camera.start();
+                
+                // カメラ起動
+                await camera.start();
+                resetCameraButton.disabled = false; // カメラリセットボタンを有効化
             } else {
                 player.stop();
                 isPlaying = false;
                 startButton.textContent = "Start Conductor";
                 statusDiv.textContent = "一時停止中";
+                // 停止時はカメラリセットボタンを無効化してもよいが、念のため残しておく
+            }
+        });
+
+        // ============================================
+        // カメラ更新（リセット）ボタンの処理
+        // ============================================
+        resetCameraButton.addEventListener('click', async () => {
+            statusDiv.textContent = "カメラ再接続中...";
+            try {
+                // MediaPipeのCamera Utilsは明示的なStopがない場合があるため、
+                // start()を呼び直すことでリセット動作を期待する
+                await camera.start();
+                statusDiv.textContent = "カメラ復帰完了 (演奏継続中)";
+            } catch (e) {
+                console.error(e);
+                statusDiv.textContent = "カメラエラー: 再読み込みしてください";
             }
         });
 
@@ -252,14 +304,13 @@
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            // ユーザー設定値の取得 (リアルタイム反映)
-            // Number()で変換しないと文字列として扱われてバグる可能性があるため変換
-            const settingTempo = Number(inputTempo.value);
-            const settingFilter = Number(inputFilter.value);
-            const settingVolRange = Number(inputVolRange.value);
-            const settingVolOffset = Number(inputVolOffset.value);
-            const settingReverb = Number(inputReverb.value);
-            const settingSmooth = Math.max(1, Number(inputSmooth.value)); // 1未満は防ぐ
+            // スライダー値の取得
+            const settingTempo = Number(inputs.tempo.value);
+            const settingFilter = Number(inputs.filter.value);
+            const settingVolRange = Number(inputs.volRange.value);
+            const settingVolOffset = Number(inputs.volOffset.value);
+            const settingReverb = Number(inputs.reverb.value);
+            const settingSmooth = Number(inputs.smooth.value);
 
             if (results.multiHandLandmarks && results.multiHandedness && isPlaying) {
                 let rightHand = null;
@@ -280,26 +331,17 @@
 
                 // --- 右手処理 ---
                 if (rightHand) {
-                    // 1. テンポ
+                    // テンポ
                     if (deltaTime > 0 && lastRightHandY !== null) {
                         const wristY = rightHand[0].y;
                         const speedY = Math.abs(wristY - lastRightHandY) / deltaTime;
                         rightHandSpeeds.push(speedY);
-                        
-                        // スムージング配列のサイズ調整
                         while (rightHandSpeeds.length > settingSmooth) rightHandSpeeds.shift();
-
                         const avgSpeed = rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length;
                         
-                        // 計算: 1.0(原曲) + (速度 * 感度)
-                        // 上限下限リミッター(Math.min/max)はあえて外しています。
-                        // ただし0以下になると逆再生等の挙動になるため、最低0.1でクリップするなど必要に応じて調整可。
-                        // ここでは「制限なし」のリクエスト通り、計算結果をそのまま入れます。
                         let targetRate = 1.0 + (avgSpeed * settingTempo);
-                        
-                        // 音響エンジン保護のための最低限のクリップ (0以下や無限大を防ぐ)
                         if (targetRate < 0.1) targetRate = 0.1; 
-                        if (targetRate > 10) targetRate = 10; // さすがに10倍速以上はノイズになるので
+                        if (targetRate > 5) targetRate = 5;
 
                         if(player.playbackRate) {
                              player.playbackRate = player.playbackRate * 0.9 + targetRate * 0.1;
@@ -307,50 +349,32 @@
                     }
                     if (deltaTime > 0) lastRightHandY = rightHand[0].y;
 
-                    // 2. 音色(フィルター)
+                    // フィルター
                     const wrist = rightHand[0];
                     const middle = rightHand[12];
                     const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
 
-                    // (距離 - 閾値) * 感度
                     let openAmount = (distance - 0.15) * settingFilter;
-                    // 0〜1の範囲にクランプしないと周波数計算がおかしくなるが、
-                    // 入力が「無制限」なので、openAmountが 2.0 とかになっても計算できるようにする
                     if (openAmount < 0) openAmount = 0;
-
-                    // 周波数計算: min + (max - min) * (amount^2)
-                    // amountが1を超えると20000Hzを突破するが、Filterの上限は人間の可聴域(20k)付近
-                    let targetFreq = 200 + (19800) * (openAmount * openAmount);
                     
-                    // AudioContextの限界を超えないように最終値だけは物理限界で切る
+                    let targetFreq = 200 + (19800) * (openAmount * openAmount);
                     if (targetFreq > 22000) targetFreq = 22000;
-                    if (targetFreq < 10) targetFreq = 10;
 
                     lowPassFilter.frequency.rampTo(targetFreq, 0.1);
-
                 } else {
-                    // 手がない時はゆっくり戻る
-                    if(player.playbackRate) {
-                        player.playbackRate = player.playbackRate * 0.95 + 1.0 * 0.05;
-                    }
+                    if(player.playbackRate) player.playbackRate = player.playbackRate * 0.95 + 1.0 * 0.05;
                 }
                 lastFrameTime = currentTime;
 
                 // --- 左手処理 ---
                 if (leftHand) {
-                    // 1. 音量
+                    // 音量
                     const wristY = leftHand[0].y; 
-                    // Yは上が0、下が1。
-                    // 計算: (1.0 - y) * Range + Offset
-                    // 上に行くと (1.0 * Range) + Offset = 最大音量
-                    // 下に行くと (0.0 * Range) + Offset = 最低音量
                     let targetVolume = (1.0 - wristY) * settingVolRange + settingVolOffset;
-                    
-                    // 安全のため上限+20dBくらいで止める（スピーカー保護）
-                    if (targetVolume > 20) targetVolume = 20; 
+                    if (targetVolume > 10) targetVolume = 10; 
                     masterVolume.volume.rampTo(targetVolume, 0.1);
 
-                    // 2. リバーブ
+                    // リバーブ
                     const wrist = leftHand[0];
                     const middle = leftHand[12];
                     const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
@@ -358,10 +382,7 @@
                     let openAmount = (distance - 0.15) * settingReverb;
                     if (openAmount < 0) openAmount = 0;
                     
-                    // リバーブWetは 0〜1 が基本だが、Tone.jsでは1以上も許容される場合がある。
-                    // しかし1を超えるとDry信号が消えたりするので、音楽的には0.9くらいがMAX推奨。
-                    // ユーザー入力で簡単にMAXに到達させるため、上限はキャップしないが、最終出力は安全策をとる。
-                    let targetWet = openAmount * 0.5; // 基本係数
+                    let targetWet = openAmount * 0.5; 
                     if (targetWet > 1) targetWet = 1;
 
                     reverb.wet.rampTo(targetWet, 0.2);
