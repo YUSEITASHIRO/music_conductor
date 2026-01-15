@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Conductor - Slow & Dynamic Reverb</title>
+    <title>AI Conductor - Z-Axis Tempo</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -87,14 +87,13 @@
         
         h2 { font-size: 1.1em; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 0; color: #ddd;}
         
-        /* 変更点の強調 */
         .highlight-text { color: #ffeb3b; font-size: 0.9em; margin-bottom: 10px; display: block;}
     </style>
 </head>
 <body>
     <div class="ui-panel">
-        <h1>AI Conductor (Slow & Wide)</h1>
-        <span class="highlight-text">★ 静止で0.5倍速(スロー) ⇔ 振ると加速</span>
+        <h1>AI Conductor (Z-Axis Tempo)</h1>
+        <span class="highlight-text">★ 右手を「手前・奥」に動かすと加速します</span>
         <div>
             <label>音楽ファイルを選択: </label><br>
             <input type="file" id="audio-upload" accept="audio/*" style="margin:10px 0;">
@@ -119,11 +118,11 @@
 
         <div class="setting-item">
             <div class="setting-header">
-                <label>【右手】テンポ感度 (振る強さ)</label>
+                <label>【右手】テンポ感度 (前後運動)</label>
                 <span class="val-display" id="val-tempo">1.0</span>
             </div>
             <input type="range" id="param-tempo" min="0.1" max="5.0" step="0.1" value="1.0">
-            <small style="color:#666; font-size:0.7em;">※止めると0.5倍速になります</small>
+            <small style="color:#666; font-size:0.7em;">※前後への突き出し速度で変化</small>
         </div>
         <div class="setting-item">
             <div class="setting-header">
@@ -201,7 +200,7 @@
 
         // Tone.js Setup
         lowPassFilter = new Tone.Filter(20000, "lowpass");
-        reverb = new Tone.Reverb({ decay: 5, wet: 0 }); // decayを少し長めに(5s)
+        reverb = new Tone.Reverb({ decay: 5, wet: 0 });
         masterVolume = new Tone.Volume(0);
         lowPassFilter.connect(reverb);
         reverb.connect(masterVolume);
@@ -273,7 +272,7 @@
 
         // MediaPipe Logic
         let rightHandSpeeds = [];
-        let lastRightHandY = null;
+        let lastRightHandZ = null; // Z軸用に変更
         let lastFrameTime = performance.now();
 
         function onResults(results) {
@@ -305,21 +304,23 @@
                 const currentTime = performance.now();
                 const deltaTime = (currentTime - lastFrameTime) / 1000;
 
-                // --- 右手処理 ---
+                // --- 右手処理 (Z-Axis) ---
                 if (rightHand) {
-                    // テンポ: 静止で0.5倍、振ると加速
-                    if (deltaTime > 0 && lastRightHandY !== null) {
-                        const wristY = rightHand[0].y;
-                        const speedY = Math.abs(wristY - lastRightHandY) / deltaTime;
-                        rightHandSpeeds.push(speedY);
+                    // テンポ: 前後の動き (Z軸) で制御
+                    if (deltaTime > 0 && lastRightHandZ !== null) {
+                        const wristZ = rightHand[0].z;
+                        
+                        // Z軸の速度計算 (絶対値)
+                        // Z座標の変化は小さいので、内部的に2倍してY軸の感覚に近づける
+                        const speedZ = (Math.abs(wristZ - lastRightHandZ) * 2.0) / deltaTime;
+                        
+                        rightHandSpeeds.push(speedZ);
                         while (rightHandSpeeds.length > settingSmooth) rightHandSpeeds.shift();
                         const avgSpeed = rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length;
                         
-                        // 計算式変更: ベースを0.5にする
-                        // 0.5(スロー) + (動き * 感度)
+                        // 0.5(スロー) + (Z速度 * 感度)
                         let targetRate = 0.5 + (avgSpeed * settingTempo);
                         
-                        // 最小値は0.1くらいでクリップ(止まらないように)
                         if (targetRate < 0.1) targetRate = 0.1; 
                         if (targetRate > 5.0) targetRate = 5.0;
 
@@ -327,9 +328,9 @@
                              player.playbackRate = player.playbackRate * 0.9 + targetRate * 0.1;
                         }
                     }
-                    if (deltaTime > 0) lastRightHandY = rightHand[0].y;
+                    if (deltaTime > 0) lastRightHandZ = rightHand[0].z; // 現在のZを保存
 
-                    // フィルター
+                    // フィルター (グーパー)
                     const wrist = rightHand[0];
                     const middle = rightHand[12];
                     const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
@@ -342,12 +343,12 @@
 
                     lowPassFilter.frequency.rampTo(targetFreq, 0.1);
                 } else {
-                    // 手がない時はスロー(0.5)に戻るように変更
+                    // 手がない時
                     if(player.playbackRate) player.playbackRate = player.playbackRate * 0.95 + 0.5 * 0.05;
                 }
                 lastFrameTime = currentTime;
 
-                // --- 左手処理 ---
+                // --- 左手処理 (変更なし) ---
                 if (leftHand) {
                     // 音量
                     const wristY = leftHand[0].y; 
@@ -355,7 +356,7 @@
                     if (targetVolume > 10) targetVolume = 10; 
                     masterVolume.volume.rampTo(targetVolume, 0.1);
 
-                    // リバーブ (感度アップ版)
+                    // リバーブ
                     const wrist = leftHand[0];
                     const middle = leftHand[12];
                     const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
@@ -363,9 +364,7 @@
                     let openAmount = (distance - 0.15) * settingReverb;
                     if (openAmount < 0) openAmount = 0;
                     
-                    // リバーブは1.0 (100% Wet) で十分強烈だが、
-                    // ユーザー感度設定が高ければ即座に1.0に張り付くようになる
-                    let targetWet = openAmount * 0.5; // Tone.jsの仕様上 1.0を超えないようベース係数を調整
+                    let targetWet = openAmount * 0.5; 
                     if (targetWet > 1.0) targetWet = 1.0; 
 
                     reverb.wet.rampTo(targetWet, 0.2);
