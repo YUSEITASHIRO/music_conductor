@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Conductor - Speed & Reverse Tone</title>
+    <title>AI Conductor - Mild Filter</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -87,20 +87,19 @@
         
         h2 { font-size: 1.1em; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 0; color: #ddd;}
         
-        .highlight-text { color: #ffeb3b; font-size: 0.9em; margin-bottom: 10px; display: block;}
         .instruction-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; font-size: 0.9em; color:#ccc;}
     </style>
 </head>
 <body>
     <div class="ui-panel">
-        <h1>AI Conductor (Stable Version)</h1>
+        <h1>AI Conductor (Final Tuned)</h1>
         
         <div class="instruction-grid">
             <div>
                 <span style="color:#fff; font-weight:bold;">【右手】</span><br>
-                ・動きの速さ → テンポ (止まるとスロー)<br>
-                ・<span style="color:#ffeb3b;">握る✊ → クリア (全開)</span><br>
-                ・開く🖐 → こもる (フィルター)
+                ・速さ → テンポ (止まるとスロー)<br>
+                ・<span style="color:#ffeb3b;">握る✊ → クリア (キレ重視)</span><br>
+                ・開く🖐 → マイルド (柔らかく)
             </div>
             <div>
                 <span style="color:#fff; font-weight:bold;">【左手】</span><br>
@@ -137,7 +136,6 @@
                 <span class="val-display" id="val-tempo">1.0</span>
             </div>
             <input type="range" id="param-tempo" min="0.1" max="5.0" step="0.1" value="1.0">
-            <small style="color:#666; font-size:0.7em;">※動かす速さに反応します</small>
         </div>
         <div class="setting-item">
             <div class="setting-header">
@@ -145,7 +143,7 @@
                 <span class="val-display" id="val-filter">4.0</span>
             </div>
             <input type="range" id="param-filter" min="1.0" max="10.0" step="0.5" value="4.0">
-            <small style="color:#666; font-size:0.7em;">※握ると明るく、開くと暗くなります</small>
+            <small style="color:#666; font-size:0.7em;">※パーにした時のマイルド具合</small>
         </div>
 
         <div class="setting-item">
@@ -288,7 +286,7 @@
 
         // MediaPipe Logic
         let rightHandSpeeds = [];
-        let lastRightHandPos = null; // {x, y} を保存
+        let lastRightHandPos = null; 
         let lastFrameTime = performance.now();
 
         function onResults(results) {
@@ -325,23 +323,18 @@
                     const wrist = rightHand[0];
                     const middle = rightHand[12];
 
-                    // 1. テンポ制御: 手首の移動速度 (X, Yの合成ベクトル)
+                    // 1. テンポ (移動速度)
                     if (deltaTime > 0 && lastRightHandPos !== null) {
-                        // 2点間の距離(移動量)を計算
                         const dx = wrist.x - lastRightHandPos.x;
                         const dy = wrist.y - lastRightHandPos.y;
                         const distance = Math.sqrt(dx*dx + dy*dy);
-                        
                         const speed = distance / deltaTime;
 
                         rightHandSpeeds.push(speed);
                         while (rightHandSpeeds.length > settingSmooth) rightHandSpeeds.shift();
                         const avgSpeed = rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length;
                         
-                        // マッピング: 0.5(スロー) + (移動速度 * 感度)
-                        // 移動速度は概ね 0.0 〜 2.0 くらい
                         let targetRate = 0.5 + (avgSpeed * settingTempo);
-                        
                         if (targetRate < 0.1) targetRate = 0.1; 
                         if (targetRate > 5.0) targetRate = 5.0;
 
@@ -351,36 +344,29 @@
                     }
                     if (deltaTime > 0) lastRightHandPos = {x: wrist.x, y: wrist.y};
 
-                    // 2. フィルター制御 (仕様反転: 握るとクリア)
+                    // 2. フィルター (握り:クリア / 開き:マイルド)
                     const fingerDistance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
 
-                    // 開き具合: 0(グー) 〜 1(パー) 
-                    // distanceは 0.1(グー) 〜 0.4(パー) くらい
+                    // 開き具合: 0〜1
                     let openAmount = (fingerDistance - 0.15) * settingFilter;
-                    // 0〜1にクランプ
                     openAmount = Math.max(0, Math.min(openAmount, 1.0));
 
-                    // 反転計算:
-                    // openAmountが0(グー)のとき -> 周波数MAX (20000Hz)
-                    // openAmountが1(パー)のとき -> 周波数MIN (200Hz)
-                    
-                    const minFreq = 200;
-                    const maxFreq = 20000;
-                    // (1 - openAmount) で値を反転させる
+                    // 反転計算: 0(グー)=High, 1(パー)=Low
                     const invertedAmount = 1.0 - openAmount;
                     
-                    // 2乗カーブで自然に変化
+                    // 最低周波数を 4000Hz に底上げ (聞こえなくならないようにする)
+                    const minFreq = 4000; 
+                    const maxFreq = 20000;
                     const targetFreq = minFreq + (maxFreq - minFreq) * (invertedAmount * invertedAmount);
 
                     lowPassFilter.frequency.rampTo(targetFreq, 0.1);
 
                 } else {
-                    // 手がない時
                     if(player.playbackRate) player.playbackRate = player.playbackRate * 0.95 + 0.5 * 0.05;
                 }
                 lastFrameTime = currentTime;
 
-                // --- 左手処理 (変更なし) ---
+                // --- 左手処理 ---
                 if (leftHand) {
                     // 音量
                     const wristY = leftHand[0].y; 
@@ -394,7 +380,7 @@
                     const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
 
                     let openAmount = (distance - 0.15) * settingReverb;
-                    openAmount = Math.max(0, Math.min(openAmount, 2.0)); // 上限解放に対応してクランプ幅を広げておく
+                    openAmount = Math.max(0, Math.min(openAmount, 2.0));
                     
                     let targetWet = openAmount * 0.5; 
                     if (targetWet > 1.0) targetWet = 1.0; 
