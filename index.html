@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Conductor - Ver.3</title>
+    <title>AI Conductor - Unlimited Custom</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -19,7 +19,7 @@
             background-color: #222;
             color: white;
             font-family: sans-serif;
-            padding-bottom: 20px;
+            padding-bottom: 50px;
         }
         #container {
             position: relative;
@@ -29,17 +29,12 @@
             background-color: #000;
         }
         #input_video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            transform: scaleX(-1); 
             display: none; 
         }
         #output_canvas {
-            position: absolute;
             width: 100%;
             height: 100%;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* 鏡像表示 */
             border: 2px solid #555;
         }
         .ui-panel {
@@ -50,6 +45,34 @@
             text-align: center;
             width: 600px;
         }
+        .settings-panel {
+            margin-top: 20px;
+            padding: 20px;
+            background: #111;
+            border: 1px solid #444;
+            border-radius: 8px;
+            width: 600px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            text-align: left;
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .setting-item label {
+            font-size: 0.85em;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        .setting-item input {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 4px;
+        }
         input[type="file"] {
             margin-bottom: 15px;
             padding: 10px;
@@ -57,6 +80,7 @@
             color: #fff;
             border: 1px solid #666;
             border-radius: 4px;
+            width: 90%;
         }
         button {
             padding: 12px 30px;
@@ -71,10 +95,6 @@
         button:disabled {
             background-color: #555;
             cursor: not-allowed;
-            color: #aaa;
-        }
-        button:hover:not(:disabled) {
-            background-color: #45a049;
         }
         #status {
             margin-top: 10px;
@@ -82,43 +102,62 @@
             color: #00ff00;
             min-height: 1.2em;
         }
-        .instructions {
-            margin: 10px;
-            font-size: 0.9em;
-            color: #ccc;
-            text-align: left;
-            width: 640px;
-        }
-        .instructions li { margin-bottom: 5px; }
-        .instructions li span { font-weight: bold; color: #fff; border-bottom: 1px solid #666;}
-        .highlight { color: #ffeb3b !important; }
+        h2 { font-size: 1.2em; border-bottom: 1px solid #444; padding-bottom: 5px; margin-top: 0;}
     </style>
 </head>
 <body>
     <div class="ui-panel">
-        <h1>AI Conductor</h1>
-        
+        <h1>AI Conductor (Unlimited)</h1>
         <div>
-            <label for="audio-upload">音楽ファイルを選択してください (mp3, wav等): </label><br>
+            <label>音楽ファイルを選択: </label><br>
             <input type="file" id="audio-upload" accept="audio/*">
         </div>
-
         <button id="start-button" disabled>ファイルを選択してください</button>
         <div id="status">待機中...</div>
-    </div>
-
-    <div class="instructions">
-        <ul>
-            <li><span>【右手】上下の速さ：</span> <strong>テンポ</strong> (再生速度)。</li>
-            <li><span class="highlight">【右手】グー・パー：</span> <strong>音の明暗 (フィルター)</strong>。<br>グー✊ = こもる (抑える)、 パー🖐 = 明るく開放！</li>
-            <li><span>【左手】高さ：</span> <strong>音量</strong> (上=大、下=小)。</li>
-            <li><span class="highlight">【左手】グー・パー：</span> <strong>リバーブ (響き)</strong>。<br>グー✊ = ドライ (響かない)、 パー🖐 = ホールのような響き。</li>
-        </ul>
     </div>
 
     <div id="container">
         <video id="input_video"></video>
         <canvas id="output_canvas" width="640" height="480"></canvas>
+    </div>
+
+    <div class="settings-panel">
+        <div style="grid-column: span 2;">
+            <h2>感度・強度の調整 (上限なし)</h2>
+            <p style="font-size:0.8em; color:#888;">数値を変更すると即座に反映されます。マイナス値も可能です。</p>
+        </div>
+
+        <div class="setting-item">
+            <label>【右手】テンポ感度 (速度倍率)</label>
+            <input type="number" id="param-tempo" value="0.8" step="0.1">
+            <small style="color:#666">値が大きいほど少しの動きで高速化</small>
+        </div>
+        <div class="setting-item">
+            <label>【右手】明暗(フィルター)感度</label>
+            <input type="number" id="param-filter" value="4.0" step="0.5">
+            <small style="color:#666">値が大きいほど少しの開きで全開に</small>
+        </div>
+
+        <div class="setting-item">
+            <label>【左手】音量レンジ (dB幅)</label>
+            <input type="number" id="param-vol-range" value="50" step="5">
+            <small style="color:#666">音量変化の幅 (Max - Min)</small>
+        </div>
+        <div class="setting-item">
+            <label>【左手】音量オフセット (基準dB)</label>
+            <input type="number" id="param-vol-offset" value="-40" step="5">
+            <small style="color:#666">一番下げた時の音量</small>
+        </div>
+        <div class="setting-item">
+            <label>【左手】リバーブ感度</label>
+            <input type="number" id="param-reverb" value="2.5" step="0.5">
+            <small style="color:#666">値が大きいほど少しの開きで最大残響</small>
+        </div>
+        <div class="setting-item">
+            <label>反応速度 (スムージング)</label>
+            <input type="number" id="param-smooth" value="15" step="1">
+            <small style="color:#666">平均を取るフレーム数 (小=機敏, 大=滑らか)</small>
+        </div>
     </div>
 
     <script>
@@ -129,28 +168,28 @@
         const statusDiv = document.getElementById('status');
         const fileInput = document.getElementById('audio-upload');
 
+        // パラメータ入力欄
+        const inputTempo = document.getElementById('param-tempo');
+        const inputFilter = document.getElementById('param-filter');
+        const inputVolRange = document.getElementById('param-vol-range');
+        const inputVolOffset = document.getElementById('param-vol-offset');
+        const inputReverb = document.getElementById('param-reverb');
+        const inputSmooth = document.getElementById('param-smooth');
+
         let isPlaying = false;
         let player = null;
         let lowPassFilter, reverb, masterVolume;
 
-        // ==============================================
-        // エフェクト初期設定
-        // ==============================================
-        // Filter: 右手で操作 (初期値は全開)
+        // Tone.js Setup
         lowPassFilter = new Tone.Filter(20000, "lowpass");
-        
-        // Reverb: 左手で操作
-        reverb = new Tone.Reverb({ decay: 4, wet: 0 }); // decay長めで荘厳に
-
+        reverb = new Tone.Reverb({ decay: 4, wet: 0 });
         masterVolume = new Tone.Volume(0);
         
-        // 接続順序: Player -> Filter -> Reverb -> Volume -> Out
-        // フィルターで音をこもらせてからリバーブをかけるのが自然
         lowPassFilter.connect(reverb);
         reverb.connect(masterVolume);
         masterVolume.toDestination();
 
-        // ファイルアップロード処理
+        // File Upload
         fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) return;
@@ -166,7 +205,7 @@
             }
 
             startButton.disabled = true;
-            statusDiv.textContent = `解析中: ${file.name} を読み込んでいます...`;
+            statusDiv.textContent = `解析中...`;
             startButton.textContent = "Loading...";
 
             const fileUrl = URL.createObjectURL(file);
@@ -177,25 +216,23 @@
                 grainSize: 0.1,
                 overlap: 0.05,
                 onload: () => {
-                    statusDiv.textContent = "解析完了。開始ボタンを押してください。";
+                    statusDiv.textContent = "準備完了";
                     startButton.textContent = "Start Conductor";
                     startButton.disabled = false;
                 }
             });
-
             player.connect(lowPassFilter);
         });
 
-        // 開始ボタン処理
+        // Start/Stop
         startButton.addEventListener('click', async () => {
             if (!player) return;
-
             if (!isPlaying) {
                 await Tone.start(); 
                 player.start();
                 isPlaying = true;
                 startButton.textContent = "Stop";
-                statusDiv.textContent = "演奏中... 右手:テンポ/明暗, 左手:音量/響き";
+                statusDiv.textContent = "演奏中";
                 camera.start();
             } else {
                 player.stop();
@@ -207,7 +244,6 @@
 
         // MediaPipe Logic
         let rightHandSpeeds = [];
-        const speedHistorySize = 15;
         let lastRightHandY = null;
         let lastFrameTime = performance.now();
 
@@ -216,11 +252,19 @@
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
+            // ユーザー設定値の取得 (リアルタイム反映)
+            // Number()で変換しないと文字列として扱われてバグる可能性があるため変換
+            const settingTempo = Number(inputTempo.value);
+            const settingFilter = Number(inputFilter.value);
+            const settingVolRange = Number(inputVolRange.value);
+            const settingVolOffset = Number(inputVolOffset.value);
+            const settingReverb = Number(inputReverb.value);
+            const settingSmooth = Math.max(1, Number(inputSmooth.value)); // 1未満は防ぐ
+
             if (results.multiHandLandmarks && results.multiHandedness && isPlaying) {
                 let rightHand = null;
                 let leftHand = null;
 
-                // 左右判定 (鏡像)
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const label = results.multiHandedness[i].label;
                     const landmarks = results.multiHandLandmarks[i];
@@ -234,21 +278,28 @@
                 const currentTime = performance.now();
                 const deltaTime = (currentTime - lastFrameTime) / 1000;
 
-                // ===============================================
-                // 1. 右手 (Right Hand): Tempo & Tone(Filter)
-                // ===============================================
+                // --- 右手処理 ---
                 if (rightHand) {
-                    // --- A. テンポ (上下の速度) ---
+                    // 1. テンポ
                     if (deltaTime > 0 && lastRightHandY !== null) {
                         const wristY = rightHand[0].y;
                         const speedY = Math.abs(wristY - lastRightHandY) / deltaTime;
                         rightHandSpeeds.push(speedY);
-                        if (rightHandSpeeds.length > speedHistorySize) rightHandSpeeds.shift();
+                        
+                        // スムージング配列のサイズ調整
+                        while (rightHandSpeeds.length > settingSmooth) rightHandSpeeds.shift();
 
                         const avgSpeed = rightHandSpeeds.reduce((a, b) => a + b, 0) / rightHandSpeeds.length;
                         
-                        let targetRate = 1.0 + (avgSpeed * 0.6); 
-                        targetRate = Math.max(0.5, Math.min(targetRate, 2.5));
+                        // 計算: 1.0(原曲) + (速度 * 感度)
+                        // 上限下限リミッター(Math.min/max)はあえて外しています。
+                        // ただし0以下になると逆再生等の挙動になるため、最低0.1でクリップするなど必要に応じて調整可。
+                        // ここでは「制限なし」のリクエスト通り、計算結果をそのまま入れます。
+                        let targetRate = 1.0 + (avgSpeed * settingTempo);
+                        
+                        // 音響エンジン保護のための最低限のクリップ (0以下や無限大を防ぐ)
+                        if (targetRate < 0.1) targetRate = 0.1; 
+                        if (targetRate > 10) targetRate = 10; // さすがに10倍速以上はノイズになるので
 
                         if(player.playbackRate) {
                              player.playbackRate = player.playbackRate * 0.9 + targetRate * 0.1;
@@ -256,58 +307,64 @@
                     }
                     if (deltaTime > 0) lastRightHandY = rightHand[0].y;
 
-                    // --- B. 音色 (グー・パー) -> Filter Frequency ---
-                    // 今回の変更点: 右手の握りで音の明るさをコントロール
+                    // 2. 音色(フィルター)
                     const wrist = rightHand[0];
-                    const middleFingerTip = rightHand[12];
-                    const distance = Math.sqrt(Math.pow(wrist.x - middleFingerTip.x, 2) + Math.pow(wrist.y - middleFingerTip.y, 2));
+                    const middle = rightHand[12];
+                    const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
 
-                    // マッピング: グー(距離小)=200Hz(暗い/こもる), パー(距離大)=20000Hz(明るい/全開)
-                    let openAmount = (distance - 0.15) * 4; 
-                    openAmount = Math.max(0, Math.min(openAmount, 1));
+                    // (距離 - 閾値) * 感度
+                    let openAmount = (distance - 0.15) * settingFilter;
+                    // 0〜1の範囲にクランプしないと周波数計算がおかしくなるが、
+                    // 入力が「無制限」なので、openAmountが 2.0 とかになっても計算できるようにする
+                    if (openAmount < 0) openAmount = 0;
 
-                    // フィルターは指数的に動かすと自然
-                    // minFreq: 完全にこもった音, maxFreq: 生音
-                    const minFreq = 200; 
-                    const maxFreq = 20000;
-                    // 曲線を意識したマッピング (2乗カーブで急激な変化を避ける)
-                    const targetFreq = minFreq + (maxFreq - minFreq) * (openAmount * openAmount);
+                    // 周波数計算: min + (max - min) * (amount^2)
+                    // amountが1を超えると20000Hzを突破するが、Filterの上限は人間の可聴域(20k)付近
+                    let targetFreq = 200 + (19800) * (openAmount * openAmount);
+                    
+                    // AudioContextの限界を超えないように最終値だけは物理限界で切る
+                    if (targetFreq > 22000) targetFreq = 22000;
+                    if (targetFreq < 10) targetFreq = 10;
 
                     lowPassFilter.frequency.rampTo(targetFreq, 0.1);
 
                 } else {
-                    // 手がない時は標準速度
+                    // 手がない時はゆっくり戻る
                     if(player.playbackRate) {
                         player.playbackRate = player.playbackRate * 0.95 + 1.0 * 0.05;
                     }
                 }
                 lastFrameTime = currentTime;
 
-
-                // ===============================================
-                // 2. 左手 (Left Hand): Volume & Reverb
-                // ===============================================
+                // --- 左手処理 ---
                 if (leftHand) {
-                    // --- A. 音量 (高さ) ---
-                    const wristY = leftHand[0].y;
-                    let targetVolume = (1.0 - wristY) * 35 - 30; 
-                    targetVolume = Math.max(-60, Math.min(targetVolume, 10));
+                    // 1. 音量
+                    const wristY = leftHand[0].y; 
+                    // Yは上が0、下が1。
+                    // 計算: (1.0 - y) * Range + Offset
+                    // 上に行くと (1.0 * Range) + Offset = 最大音量
+                    // 下に行くと (0.0 * Range) + Offset = 最低音量
+                    let targetVolume = (1.0 - wristY) * settingVolRange + settingVolOffset;
+                    
+                    // 安全のため上限+20dBくらいで止める（スピーカー保護）
+                    if (targetVolume > 20) targetVolume = 20; 
                     masterVolume.volume.rampTo(targetVolume, 0.1);
 
-                    // --- B. リバーブ (グー・パー) ---
-                    // 今回の変更点: 左手はリバーブに戻す
+                    // 2. リバーブ
                     const wrist = leftHand[0];
-                    const middleFingerTip = leftHand[12];
-                    const distance = Math.sqrt(Math.pow(wrist.x - middleFingerTip.x, 2) + Math.pow(wrist.y - middleFingerTip.y, 2));
+                    const middle = leftHand[12];
+                    const distance = Math.sqrt(Math.pow(wrist.x - middle.x, 2) + Math.pow(wrist.y - middle.y, 2));
 
-                    // マッピング: グー=Dry(0), パー=Wet(最大0.5くらい)
-                    let openAmount = (distance - 0.15) * 4; 
-                    openAmount = Math.max(0, Math.min(openAmount, 1));
+                    let openAmount = (distance - 0.15) * settingReverb;
+                    if (openAmount < 0) openAmount = 0;
                     
-                    const maxReverb = 0.5; // リバーブのかかりすぎを防ぐ
-                    const targetWet = openAmount * maxReverb;
+                    // リバーブWetは 0〜1 が基本だが、Tone.jsでは1以上も許容される場合がある。
+                    // しかし1を超えるとDry信号が消えたりするので、音楽的には0.9くらいがMAX推奨。
+                    // ユーザー入力で簡単にMAXに到達させるため、上限はキャップしないが、最終出力は安全策をとる。
+                    let targetWet = openAmount * 0.5; // 基本係数
+                    if (targetWet > 1) targetWet = 1;
 
-                    reverb.wet.rampTo(targetWet, 0.2); // 少しゆっくり変化させる
+                    reverb.wet.rampTo(targetWet, 0.2);
                 }
             }
             canvasCtx.restore();
@@ -321,7 +378,6 @@
             onFrame: async () => { await hands.send({image: videoElement}); },
             width: 640, height: 480
         });
-        
     </script>
 </body>
 </html>
