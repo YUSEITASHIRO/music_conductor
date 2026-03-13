@@ -1,4 +1,4 @@
-# 🎼 AI Conductor
+# 🎼 Music Conductor
 
 ### *「音楽ファイルをアップロードして、両手を振るだけで、あなたが指揮者になれる。」*
 > MediaPipe による手指リアルタイム認識を用いた、ブラウザだけで動く指揮体験Webアプリケーションです。
@@ -9,7 +9,7 @@
 
 | 項目 | 内容 |
 |------|------|
-| **タイトル** | AI Conductor |
+| **タイトル** | Music Conductor |
 | **ジャンル** | 音楽体験 / 手指ジェスチャー制御 |
 | **プラットフォーム** | Web Browser (PC / カメラ付き端末) |
 | **使用言語・技術** | HTML5 / MediaPipe Hands / Tone.js |
@@ -83,7 +83,7 @@
 ## 📁 ファイル構成 (File Structure)
 
 ```
-AI-Conductor/
+music_conductor/
 └── index.html       # アプリ本体（全ロジック・UIを単一ファイルに集約）
 ```
 
@@ -145,4 +145,4 @@ python -m http.server 8000
 
 ---
 
-*田代悠晟個人制作 / AI Conductor Project*
+*田代悠晟個人制作 / Music Conductor Project*
